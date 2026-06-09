@@ -21,11 +21,22 @@ def _parse_symbols() -> list[str]:
     return ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
 
 
+# Binance spot has no XAUUSDT — gold is PAXG (Pax Gold). XAUUSDT is futures-only.
+_SYMBOL_ALIASES: dict[str, str] = {
+    "XAU": "PAXGUSDT",
+    "XAUUSDT": "PAXGUSDT",
+    "GOLD": "PAXGUSDT",
+    "PAXG": "PAXGUSDT",
+}
+
+
 def _normalize_symbol(symbol: str) -> str:
-    """Binance spot pairs use USDT suffix (e.g. DOGE -> DOGEUSDT)."""
+    """Map aliases and ensure Binance spot USDT suffix (e.g. DOGE -> DOGEUSDT)."""
     s = symbol.strip().upper()
     if not s:
         return s
+    if s in _SYMBOL_ALIASES:
+        return _SYMBOL_ALIASES[s]
     if s.endswith("USDT"):
         return s
     return f"{s}USDT"

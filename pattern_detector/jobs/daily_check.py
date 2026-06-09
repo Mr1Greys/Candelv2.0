@@ -23,6 +23,15 @@ from signals.telegram import TelegramNotifier, format_caption
 
 logger = logging.getLogger(__name__)
 
+# Standalone flags/triangles must never fire from the daily (1D) cron.
+_FLAG_ONLY_TYPES = frozenset(
+    {
+        "BEAR_FLAG_FORMING",
+        "BULL_FLAG_FORMING",
+        "DESCENDING_TRIANGLE_FORMING",
+    }
+)
+
 
 def _closed_candles(candles: list[Candle]) -> list[Candle]:
     """Drop the in-progress REST kline (last element)."""
@@ -117,6 +126,7 @@ async def run_flag_check(timeframe: str) -> dict[str, Any]:
         "skipped": [],
         "errors": [],
     }
+    logger.info("flag check: timeframe=%s symbols=%s", timeframe, config.SYMBOLS)
     notifier = TelegramNotifier()
     kv = KVStore()
     await notifier.start()
@@ -176,6 +186,12 @@ async def run_1d_check() -> dict[str, Any]:
         "skipped": [],
         "errors": [],
     }
+    logger.info(
+        "1d check: engulfing=%s combo_flag=%s symbols=%s",
+        config.ENGULFING_TIMEFRAME,
+        config.COMBO_FLAG_TIMEFRAME,
+        config.SYMBOLS,
+    )
     notifier = TelegramNotifier()
     kv = KVStore()
     await notifier.start()
@@ -204,6 +220,10 @@ async def run_1d_check() -> dict[str, Any]:
                 combo_types = {c.type for c in combos}
                 standalone = [e for e in engulfing if e.type not in combo_types]
                 results = combos + standalone
+                blocked = [r.type for r in results if r.type in _FLAG_ONLY_TYPES]
+                if blocked:
+                    logger.warning("[%s] blocked standalone flag on 1d cron: %s", symbol, blocked)
+                results = [r for r in results if r.type not in _FLAG_ONLY_TYPES]
 
                 if not results:
                     summary["skipped"].append(
@@ -227,7 +247,14 @@ async def run_1d_check() -> dict[str, Any]:
 
 
 async def run_daily_check(mode: str = "1d") -> dict[str, Any]:
-    """Dispatch cron: ``1h``/``4h`` flags, ``1d`` engulfing."""
+    """Dispatch cron: ``1h``/``4h`` flags, ``1d`` engulfing only."""
+    logger.info(
+        "cron dispatch mode=%s flag_timeframes=%s",
+        mode,
+        config.FLAG_TIMEFRAMES,
+    )
     if mode in config.FLAG_TIMEFRAMES:
         return await run_flag_check(mode)
-    return await run_1d_check()
+    if mode == "1d":
+        return await run_1d_check()
+    raise ValueError(f"unknown cron mode: {mode!r}")

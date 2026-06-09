@@ -1,13 +1,17 @@
 """Vercel API: health check and cron jobs (1h/4h flags, 1d engulfing)."""
 from __future__ import annotations
 
+import json
 import logging
+import os
 from http.server import BaseHTTPRequestHandler
 
 from api.cron_handler import run_mode
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("api")
+
+BUILD_VERSION = os.getenv("VERCEL_GIT_COMMIT_SHA", "local")[:7]
 
 
 def _cron_mode(path: str) -> str | None:
@@ -29,6 +33,20 @@ def _cron_mode(path: str) -> str | None:
     return None
 
 
+def _health_body() -> bytes:
+    import config
+
+    payload = {
+        "status": "ok",
+        "service": "candel-pattern-detector",
+        "version": BUILD_VERSION,
+        "flag_timeframes": config.FLAG_TIMEFRAMES,
+        "engulfing_timeframe": config.ENGULFING_TIMEFRAME,
+        "cron_routes": ["/api/cron_1h", "/api/cron_4h", "/api/cron"],
+    }
+    return json.dumps(payload).encode("utf-8")
+
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         mode = _cron_mode(self.path)
@@ -38,7 +56,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
-        self.wfile.write(b'{"status":"ok","service":"candel-pattern-detector"}')
+        self.wfile.write(_health_body())
 
     def do_POST(self) -> None:
         mode = _cron_mode(self.path)
@@ -48,6 +66,18 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(405)
         self.end_headers()
         self.wfile.write(b"Method not allowed")
+
+    def do_HEAD(self) -> None:
+        mode = _cron_mode(self.path)
+        if mode:
+            from api.cron_handler import authorized
+
+            self.send_response(401 if not authorized(self.headers) else 200)
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
 
     def log_message(self, fmt: str, *args) -> None:
         logger.info(fmt, *args)
