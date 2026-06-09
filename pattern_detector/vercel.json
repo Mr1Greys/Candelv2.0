@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "pip install -r requirements.txt",
+  "buildCommand": "python -c \"from api.index import BUILD_VERSION; print('build', BUILD_VERSION)\"",
   "crons": [
     {
       "path": "/api/cron_1h",
