@@ -4,14 +4,6 @@
   "buildCommand": "python -c \"from api.index import BUILD_VERSION; print('build', BUILD_VERSION)\"",
   "crons": [
     {
-      "path": "/api/cron_1h",
-      "schedule": "5 * * * *"
-    },
-    {
-      "path": "/api/cron_4h",
-      "schedule": "5 */4 * * *"
-    },
-    {
       "path": "/api/cron",
       "schedule": "5 0 * * *"
     }

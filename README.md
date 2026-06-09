@@ -102,15 +102,33 @@ After each `git push` to `main`, Vercel must create a **new** deployment. **"Red
 3. **Deployments → Create Deployment** → `main` → latest commit
 4. **Gold:** use `PAXGUSDT` in `SYMBOLS` (Binance spot has no `XAUUSDT`)
 
-### 5. Enable Cron Jobs
+### 5. Cron Jobs (Hobby vs Pro)
 
-Cron is defined in [`pattern_detector/vercel.json`](pattern_detector/vercel.json):
+**Vercel Hobby (бесплатный)** — только **1 cron в сутки**. Часовые и 4-часовые cron в `vercel.json` **блокируют деплой**.
 
-- `/api/cron_1h` — `5 * * * *` (флаги и треугольник, каждый час)
-- `/api/cron_4h` — `5 */4 * * *` (флаги и треугольник, каждые 4 часа)
-- `/api/cron` — `5 0 * * *` (поглощения, ежедневно 00:05 UTC)
+| Задача | Как запускать на Hobby |
+|--------|------------------------|
+| 1D engulfing | Vercel Cron → `/api/cron` — `5 0 * * *` (в `vercel.json`) |
+| 1H + 4H флаги | Бесплатный [cron-job.org](https://cron-job.org) → `/api/cron_tick` каждый час |
 
-On Hobby the function timeout is 10s — chart rendering for 3 pairs may time out; Vercel Pro gives up to 60s (configure `functions` in `vercel.json` after the first successful deploy).
+#### Vercel (только 1D)
+
+В [`pattern_detector/vercel.json`](pattern_detector/vercel.json):
+
+- `/api/cron` — `5 0 * * *` (поглощения, 00:05 UTC)
+
+#### cron-job.org (1H + 4H флаги)
+
+1. Регистрация на [cron-job.org](https://cron-job.org)
+2. **Create cronjob:**
+   - URL: `https://candelv2-0.vercel.app/api/cron_tick`
+   - Schedule: every hour at minute 5
+   - **Headers:** `Authorization: Bearer <ваш CRON_SECRET>`
+3. Endpoint `/api/cron_tick` сам запускает **1H** каждый раз и **4H** каждые 4 часа (UTC)
+
+**Vercel Pro** — можно вернуть 3 cron прямо в `vercel.json` (см. git history).
+
+On Hobby the function timeout is 10s — chart rendering for many pairs may time out; Pro gives up to 60s.
 
 ### 6. Manual test
 

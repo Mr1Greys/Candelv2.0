@@ -28,6 +28,8 @@ def _cron_mode(path: str) -> str | None:
         return "1h"
     if last == "cron_4h":
         return "4h"
+    if last == "cron_tick":
+        return "tick"
     if len(parts) >= 2 and parts[-2] == "cron" and last in ("1h", "4h"):
         return last
     return None
@@ -42,7 +44,7 @@ def _health_body() -> bytes:
         "version": BUILD_VERSION,
         "flag_timeframes": config.FLAG_TIMEFRAMES,
         "engulfing_timeframe": config.ENGULFING_TIMEFRAME,
-        "cron_routes": ["/api/cron_1h", "/api/cron_4h", "/api/cron"],
+        "cron_routes": ["/api/cron_1h", "/api/cron_4h", "/api/cron", "/api/cron_tick"],
     }
     return json.dumps(payload).encode("utf-8")
 

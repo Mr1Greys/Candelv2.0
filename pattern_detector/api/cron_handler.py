@@ -17,6 +17,22 @@ os.environ.setdefault("MPLCONFIGDIR", "/tmp")
 logger = logging.getLogger("api.cron")
 
 
+async def _run_tick() -> dict:
+    """Hourly tick for Hobby plan: 1h flags every call, 4h every 4 hours (UTC)."""
+    from datetime import datetime, timezone
+
+    from jobs.daily_check import run_daily_check  # noqa: E402
+
+    now = datetime.now(timezone.utc)
+    modes = ["1h"]
+    if now.hour % 4 == 0:
+        modes.append("4h")
+    results: dict[str, dict] = {}
+    for mode in modes:
+        results[mode] = await run_daily_check(mode=mode)
+    return {"mode": "tick", "utc": now.isoformat(), "modes_run": modes, "results": results}
+
+
 def authorized(headers) -> bool:
     secret = os.getenv("CRON_SECRET", "").strip()
     if not secret:
@@ -35,7 +51,10 @@ def run_mode(handler: BaseHTTPRequestHandler, mode: str) -> None:
     from jobs.daily_check import run_daily_check  # noqa: E402
 
     try:
-        summary = asyncio.run(run_daily_check(mode=mode))
+        if mode == "tick":
+            summary = asyncio.run(_run_tick())
+        else:
+            summary = asyncio.run(run_daily_check(mode=mode))
         body = json.dumps(summary, ensure_ascii=False).encode("utf-8")
         handler.send_response(200)
         handler.send_header("Content-Type", "application/json; charset=utf-8")
