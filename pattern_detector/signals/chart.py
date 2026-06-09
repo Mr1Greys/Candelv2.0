@@ -21,7 +21,12 @@ _LINE2 = "#ff6d00"
 _HILITE = "#ffd54f"
 
 
-def render_chart(candles: list[Candle], pattern: PatternResult, symbol: str) -> bytes:
+def render_chart(
+    candles: list[Candle],
+    pattern: PatternResult,
+    symbol: str,
+    timeframe: str | None = None,
+) -> bytes:
     """Draw the last ``CHART_CANDLES`` candles with pattern overlays.
 
     ``candles`` is the closed-candle list (oldest-first). Pattern indices are
@@ -59,7 +64,8 @@ def render_chart(candles: list[Candle], pattern: PatternResult, symbol: str) -> 
     _overlay_pattern(ax, candles, pattern, x_start, n)
 
     ax.set_xlim(x_start - 1, n)
-    title = f"{pattern.type}  |  {symbol}  |  {config.TIMEFRAME.upper()}"
+    tf = (timeframe or config.FLAG_TIMEFRAME).upper()
+    title = f"{pattern.type}  |  {symbol}  |  {tf}"
     ax.set_title(title, fontsize=13, fontweight="bold")
     ax.grid(True, alpha=0.2)
     ax.set_ylabel("Price (USDT)")

@@ -16,11 +16,9 @@ _API = "https://api.telegram.org/bot{token}/{method}"
 
 WELCOME_TEXT = (
     "\U0001F44B Pattern Detector\n\n"
-    f"Я мониторю графики BTC / ETH / SOL на таймфрейме {config.TIMEFRAME.upper()} и присылаю сигналы, "
-    "когда нахожу паттерны:\n"
-    "• Bear / Bull Flag (формируется)\n"
-    "• Нисходящий треугольник\n"
-    "• Bullish / Bearish Engulfing\n\n"
+    f"Я мониторю BTC / ETH / SOL и присылаю сигналы:\n"
+    f"• Bear / Bull Flag + треугольник — {config.FLAG_TIMEFRAME.upper()}\n"
+    f"• Bullish / Bearish Engulfing — {config.ENGULFING_TIMEFRAME.upper()}\n\n"
     "Сигнал = картинка графика + описание.\n"
     "Кнопок нет — только автоматические уведомления.\n\n"
     "Команды:\n"
@@ -35,9 +33,14 @@ def _fmt_price(value: float) -> str:
     return f"{value:,.2f}"
 
 
-def format_caption(pattern: PatternResult, candle: Candle, symbol: str) -> str:
+def format_caption(
+    pattern: PatternResult,
+    candle: Candle,
+    symbol: str,
+    timeframe: str | None = None,
+) -> str:
     """Build the human-readable signal text for a pattern."""
-    tf = config.TIMEFRAME.upper()
+    tf = (timeframe or config.FLAG_TIMEFRAME).upper()
     price = _fmt_price(candle.close)
     when = candle.open_dt.strftime("%Y-%m-%d %H:%M UTC")
     conf = f"{round(pattern.confidence * 100)}%"

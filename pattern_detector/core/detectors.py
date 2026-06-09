@@ -23,11 +23,18 @@ _FLAG_TRIANGLE_DETECTORS = [
 ]
 
 
-def run_detectors(symbol: str, candles: list[Candle]) -> list[PatternResult]:
-    """Run flag, triangle and engulfing detectors; apply combo logic."""
-    results: list[PatternResult] = []
+def timeframe_for_pattern(pattern: PatternResult) -> str:
+    """Return the chart/caption timeframe for a detected pattern."""
+    if pattern.is_engulfing() or "ENGULFING" in pattern.type:
+        return config.ENGULFING_TIMEFRAME
+    return config.FLAG_TIMEFRAME
 
-    flag_triangle: list[PatternResult] = []
+
+def run_flag_triangle_detectors(
+    symbol: str, candles: list[Candle]
+) -> list[PatternResult]:
+    """Bear/bull flags and descending triangle — validated on 4H only."""
+    results: list[PatternResult] = []
     for det in _FLAG_TRIANGLE_DETECTORS:
         try:
             res = det.detect(candles, symbol)
@@ -35,40 +42,59 @@ def run_detectors(symbol: str, candles: list[Candle]) -> list[PatternResult]:
             logger.exception("[%s] detector %s failed", symbol, det.name)
             res = None
         if res is not None:
-            flag_triangle.append(res)
-
-    last_idx = len(candles) - 1
-    bull_eng = detect_bullish_engulfing(candles, last_idx, symbol)
-    bear_eng = detect_bearish_engulfing(candles, last_idx, symbol)
-
-    combo = _combine(flag_triangle, bull_eng, bear_eng, candles, symbol)
-    if combo is not None:
-        results.append(combo)
-
-    results.extend(flag_triangle)
-    if combo is None:
-        if bull_eng is not None:
-            results.append(bull_eng)
-        if bear_eng is not None:
-            results.append(bear_eng)
-
+            results.append(res)
     return results
+
+
+def run_engulfing_detectors(symbol: str, candles: list[Candle]) -> list[PatternResult]:
+    """Bullish/bearish engulfing — validated on 1D only."""
+    if len(candles) < 2:
+        return []
+    last_idx = len(candles) - 1
+    results: list[PatternResult] = []
+    bull = detect_bullish_engulfing(candles, last_idx, symbol)
+    bear = detect_bearish_engulfing(candles, last_idx, symbol)
+    if bull is not None:
+        results.append(bull)
+    if bear is not None:
+        results.append(bear)
+    return results
+
+
+def run_combo_detectors(
+    symbol: str,
+    candles_4h: list[Candle],
+    candles_1d: list[Candle],
+) -> list[PatternResult]:
+    """Combo signals when 4H structure and 1D engulfing align on the same check."""
+    if not candles_4h or not candles_1d:
+        return []
+
+    flag_triangle = run_flag_triangle_detectors(symbol, candles_4h)
+    engulfing = run_engulfing_detectors(symbol, candles_1d)
+    bull_eng = next((p for p in engulfing if p.type == "BULLISH_ENGULFING"), None)
+    bear_eng = next((p for p in engulfing if p.type == "BEARISH_ENGULFING"), None)
+
+    combo = _combine(flag_triangle, bull_eng, bear_eng, candles_4h, candles_1d, symbol)
+    return [combo] if combo is not None else []
 
 
 def _combine(
     flag_triangle: list[PatternResult],
     bull_eng: Optional[PatternResult],
     bear_eng: Optional[PatternResult],
-    candles: list[Candle],
+    candles_4h: list[Candle],
+    candles_1d: list[Candle],
     symbol: str,
 ) -> Optional[PatternResult]:
-    """Synthesize a stronger combined signal when patterns coincide."""
-    last = candles[-1]
+    """Synthesize combo when 4H flag/triangle meets 1D engulfing."""
+    last_4h = candles_4h[-1]
+    last_1d = candles_1d[-1]
     by_type = {p.type: p for p in flag_triangle}
 
     bear_flag = by_type.get("BEAR_FLAG_FORMING")
     if bear_eng is not None and bear_flag is not None and bear_flag.breakout_level:
-        if last.close <= bear_flag.breakout_level * 1.001:
+        if last_4h.close <= bear_flag.breakout_level * 1.001:
             conf = min(0.95, max(bear_flag.confidence, bear_eng.confidence) + 0.1)
             return PatternResult(
                 type="BEAR_FLAG_BREAKOUT_CONFIRMED",
@@ -83,12 +109,13 @@ def _combine(
                 meta={
                     **bear_eng.meta,
                     "headline": "BEAR FLAG BREAKOUT CONFIRMED by BEARISH ENGULFING",
+                    "timeframe": config.ENGULFING_TIMEFRAME,
                 },
             )
 
     triangle = by_type.get("DESCENDING_TRIANGLE_FORMING")
     if bull_eng is not None and triangle is not None and triangle.support_level:
-        if abs(last.low - triangle.support_level) <= triangle.support_level * 0.01:
+        if abs(last_1d.low - triangle.support_level) <= triangle.support_level * 0.01:
             conf = min(0.95, max(triangle.confidence, bull_eng.confidence) + 0.1)
             return PatternResult(
                 type="TRIANGLE_SUPPORT_TEST_BULLISH_ENGULFING",
@@ -101,12 +128,16 @@ def _combine(
                     **bull_eng.meta,
                     "window_start": triangle.meta.get("window_start"),
                     "headline": "TRIANGLE SUPPORT TEST + BULLISH ENGULFING",
+                    "timeframe": config.ENGULFING_TIMEFRAME,
                 },
             )
 
     return None
 
 
-def min_candles_required() -> int:
-    """Minimum closed candles before detectors can run meaningfully."""
+def min_candles_required_flag() -> int:
     return config.CONSOLIDATION_MIN + config.IMPULSE_CANDLES_MIN
+
+
+def min_candles_required_engulfing() -> int:
+    return 2

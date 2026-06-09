@@ -18,9 +18,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("api")
 
 
-def _is_cron_path(path: str) -> bool:
+def _cron_mode(path: str) -> str | None:
     clean = path.split("?", 1)[0].rstrip("/")
-    return clean.endswith("/cron") or clean == "/api/cron"
+    if clean.endswith("/cron/4h"):
+        return "4h"
+    if clean.endswith("/cron") or clean == "/api/cron":
+        return "1d"
+    return None
 
 
 def _authorized(headers) -> bool:
@@ -40,8 +44,9 @@ def _handle_cron(handler: BaseHTTPRequestHandler) -> None:
 
     from jobs.daily_check import run_daily_check  # noqa: E402
 
+    mode = _cron_mode(handler.path) or "1d"
     try:
-        summary = asyncio.run(run_daily_check())
+        summary = asyncio.run(run_daily_check(mode=mode))
         body = json.dumps(summary, ensure_ascii=False).encode("utf-8")
         handler.send_response(200)
         handler.send_header("Content-Type", "application/json; charset=utf-8")
@@ -65,13 +70,13 @@ def _handle_health(handler: BaseHTTPRequestHandler) -> None:
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        if _is_cron_path(self.path):
+        if _cron_mode(self.path):
             _handle_cron(self)
         else:
             _handle_health(self)
 
     def do_POST(self) -> None:
-        if _is_cron_path(self.path):
+        if _cron_mode(self.path):
             _handle_cron(self)
         else:
             self.send_response(405)

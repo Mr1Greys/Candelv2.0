@@ -54,7 +54,8 @@ Repository: https://github.com/Mr1Greys/Candelv2.0.git
 | Variable | Default |
 |----------|---------|
 | `BINANCE_REST_URL` | `https://data-api.binance.vision/api/v3/klines` |
-| `TIMEFRAME` | `1d` |
+| `FLAG_TIMEFRAME` | `4h` (флаги и треугольник) |
+| `ENGULFING_TIMEFRAME` | `1d` (поглощения) |
 | `SYMBOLS` | `BTCUSDT,ETHUSDT,SOLUSDT` |
 | `MPLCONFIGDIR` | `/tmp` |
 
@@ -88,8 +89,8 @@ Without KV, duplicate Telegram messages are possible if the cron endpoint is tri
 
 Cron is defined in [`pattern_detector/vercel.json`](pattern_detector/vercel.json):
 
-- Path: `/api/cron`
-- Schedule: `5 0 * * *` (00:05 UTC daily)
+- `/api/cron/4h` — `5 */4 * * *` (флаги и треугольник, каждые 4 часа)
+- `/api/cron` — `5 0 * * *` (поглощения, ежедневно 00:05 UTC)
 
 On Hobby the function timeout is 10s — chart rendering for 3 pairs may time out; Vercel Pro gives up to 60s (configure `functions` in `vercel.json` after the first successful deploy).
 

@@ -78,8 +78,14 @@ class CandleBuffer:
 class BinanceWSWorker:
     """Maintains a live candle buffer for one symbol and triggers detection."""
 
-    def __init__(self, symbol: str, on_closed: OnClosedCandle):
+    def __init__(
+        self,
+        symbol: str,
+        on_closed: OnClosedCandle,
+        timeframe: str = config.FLAG_TIMEFRAME,
+    ):
         self.symbol = symbol
+        self.timeframe = timeframe
         self.on_closed = on_closed
         self.buffer = CandleBuffer()
         self._stop = asyncio.Event()
@@ -96,16 +102,21 @@ class BinanceWSWorker:
 
     @property
     def stream_url(self) -> str:
-        return f"{config.BINANCE_WS_BASE}/{self.symbol.lower()}@kline_{config.TIMEFRAME}"
+        return f"{config.BINANCE_WS_BASE}/{self.symbol.lower()}@kline_{self.timeframe}"
 
     async def _bootstrap(self, session: aiohttp.ClientSession) -> None:
-        candles = await fetch_klines(self.symbol, session=session)
+        candles = await fetch_klines(self.symbol, interval=self.timeframe, session=session)
         # The last REST candle may still be the in-progress one; keep only closed.
         # REST klines are closed except possibly the final element when it equals
         # the current period. We keep BUFFER_SIZE most recent and let the WS
         # stream re-close the latest as needed.
         self.buffer.bootstrap(candles[-config.BUFFER_SIZE:])
-        logger.info("[%s] buffer ready: %d closed candles", self.symbol, len(self.buffer))
+        logger.info(
+            "[%s %s] buffer ready: %d closed candles",
+            self.symbol,
+            self.timeframe,
+            len(self.buffer),
+        )
         if self.buffer.ready():
             await self.on_closed(self.symbol, self.buffer)
 
@@ -124,7 +135,7 @@ class BinanceWSWorker:
                         close_timeout=5,
                     ) as ws:
                         self._ws = ws
-                        logger.info("[%s] WS connected", self.symbol)
+                        logger.info("[%s %s] WS connected", self.symbol, self.timeframe)
                         backoff = 1
                         try:
                             consume_task = asyncio.create_task(self._consume(ws))
