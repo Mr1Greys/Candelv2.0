@@ -122,7 +122,7 @@ async def test_live_rest():
         print("SKIP live REST (network):", exc)
         return
     print(f"OK live REST: {len(candles)} candles, last close={candles[-1].close}")
-    from main import run_detectors
+    from core.detectors import run_detectors
     results = run_detectors("BTCUSDT", candles)
     print(f"  live detectors -> {[r.type for r in results] or 'no patterns right now'}")
 

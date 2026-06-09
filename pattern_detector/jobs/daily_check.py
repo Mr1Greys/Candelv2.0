@@ -1,4 +1,4 @@
-"""Daily engulfing check for Vercel Cron (REST-only, no WebSocket)."""
+"""Daily pattern check for Vercel Cron (REST-only, no WebSocket)."""
 from __future__ import annotations
 
 import logging
@@ -7,33 +7,22 @@ from typing import Any
 import aiohttp
 
 import config
+from core.detectors import min_candles_required, run_detectors
 from core.kv_store import KVStore
 from data.binance_rest import fetch_klines
-from models import Candle, PatternResult
-from patterns.candle_patterns import detect_bearish_engulfing, detect_bullish_engulfing
+from models import PatternResult
 from signals.chart import render_chart
 from signals.telegram import TelegramNotifier, format_caption
 
 logger = logging.getLogger(__name__)
 
 
-def detect_engulfing_only(symbol: str, candles: list[Candle]) -> list[PatternResult]:
-    """Run bullish/bearish engulfing detectors on the last closed candle."""
-    if len(candles) < 2:
-        return []
-    last_idx = len(candles) - 1
-    results: list[PatternResult] = []
-    bull = detect_bullish_engulfing(candles, last_idx, symbol)
-    bear = detect_bearish_engulfing(candles, last_idx, symbol)
-    if bull is not None:
-        results.append(bull)
-    if bear is not None:
-        results.append(bear)
-    return results
+def _dedup_key(symbol: str, result: PatternResult, open_time: int) -> str:
+    return f"signal:{symbol}:{result.type}:{open_time}"
 
 
 async def run_daily_check() -> dict[str, Any]:
-    """Fetch 1D candles, detect engulfing on last closed day, send Telegram alerts."""
+    """Fetch 1D candles, run all detectors, send Telegram alerts."""
     summary: dict[str, Any] = {
         "symbols_checked": [],
         "signals_sent": [],
@@ -56,20 +45,24 @@ async def run_daily_check() -> dict[str, Any]:
                     summary["errors"].append({"symbol": symbol, "error": str(exc)})
                     continue
 
-                if len(candles) < 2:
+                # REST returns the current in-progress candle as the last element.
+                closed = candles[:-1] if len(candles) > 1 else candles
+
+                if len(closed) < min_candles_required():
                     summary["skipped"].append(
-                        {"symbol": symbol, "reason": "not enough candles"}
+                        {
+                            "symbol": symbol,
+                            "reason": f"not enough candles ({len(closed)})",
+                        }
                     )
                     continue
 
-                # REST returns the current in-progress candle as the last element.
-                closed = candles[:-1]
                 signal_candle = closed[-1]
-                results = detect_engulfing_only(symbol, closed)
+                results = run_detectors(symbol, closed)
 
                 if not results:
                     summary["skipped"].append(
-                        {"symbol": symbol, "reason": "no engulfing pattern"}
+                        {"symbol": symbol, "reason": "no patterns detected"}
                     )
                     continue
 
@@ -84,7 +77,7 @@ async def run_daily_check() -> dict[str, Any]:
                         )
                         continue
 
-                    dedup_key = f"engulf:{symbol}:{signal_candle.open_time}:{result.type}"
+                    dedup_key = _dedup_key(symbol, result, signal_candle.open_time)
                     if await kv.exists(dedup_key):
                         summary["skipped"].append(
                             {
@@ -106,8 +99,17 @@ async def run_daily_check() -> dict[str, Any]:
                         continue
 
                     caption = format_caption(result, signal_candle, symbol)
-                    png = render_chart(closed, result, symbol)
-                    await notifier.send_photo(png, caption)
+                    try:
+                        png = render_chart(closed, result, symbol)
+                        await notifier.send_photo(png, caption)
+                    except Exception:  # noqa: BLE001
+                        logger.exception(
+                            "[%s] chart render failed for %s; sending text",
+                            symbol,
+                            result.type,
+                        )
+                        await notifier.send_text(caption)
+
                     await kv.set(dedup_key)
                     summary["signals_sent"].append(
                         {

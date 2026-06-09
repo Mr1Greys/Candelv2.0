@@ -1,4 +1,4 @@
-"""Vercel Cron entrypoint: daily 1D engulfing check."""
+"""Vercel Cron entrypoint: daily 1D pattern check (flags, triangle, engulfing)."""
 from __future__ import annotations
 
 import asyncio

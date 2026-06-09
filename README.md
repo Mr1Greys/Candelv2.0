@@ -24,7 +24,7 @@ python main.py
 
 ## Vercel Cron (production, daily check)
 
-Vercel runs a serverless function **every day at 00:05 UTC** — after the daily candle closes — checks engulfing patterns and sends Telegram photos.
+Vercel runs a serverless function **every day at 00:05 UTC** — after the daily candle closes — checks all patterns and sends Telegram photos.
 
 ### 1. Connect GitHub
 
@@ -107,10 +107,12 @@ Response is JSON with `signals_sent`, `skipped`, and `errors`.
 | Feature | Vercel Cron | Local `main.py` |
 |---------|-------------|-----------------|
 | Engulfing 1D signals | Yes (daily) | Yes (on candle close) |
+| Bear / Bull Flag | Yes (daily) | Yes |
+| Descending Triangle | Yes (daily) | Yes |
+| Combo signals | Yes (daily) | Yes |
 | Chart + Telegram | Yes | Yes |
 | `/start`, `/status` | No | Yes |
 | WebSocket realtime | No | Yes |
-| Flag / triangle patterns | No (engulfing only) | Yes |
 
 ## License
 
