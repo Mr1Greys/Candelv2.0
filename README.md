@@ -34,10 +34,11 @@ Repository: https://github.com/Mr1Greys/Candelv2.0.git
 
 | Setting | Value |
 |---------|-------|
-| Root Directory | `pattern_detector` |
+| Root Directory | **`pattern_detector`** (обязательно — иначе `api/cron.py` не найдётся) |
 | Framework Preset | Other |
 | Build Command | *(empty)* |
 | Output Directory | *(empty)* |
+| Install Command | `pip install -r requirements.txt` *(или оставить пустым — задано в vercel.json)* |
 
 ### 3. Environment variables
 
@@ -90,7 +91,7 @@ Cron is defined in [`pattern_detector/vercel.json`](pattern_detector/vercel.json
 - Path: `/api/cron`
 - Schedule: `5 0 * * *` (00:05 UTC daily)
 
-`maxDuration` is 60s (Vercel Pro). On Hobby (10s limit) chart rendering may time out.
+On Hobby the function timeout is 10s — chart rendering for 3 pairs may time out; Vercel Pro gives up to 60s (configure `functions` in `vercel.json` after the first successful deploy).
 
 ### 5. Manual test
 

@@ -1,13 +1,10 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "pip install -r requirements.txt",
   "crons": [
     {
       "path": "/api/cron",
       "schedule": "5 0 * * *"
     }
-  ],
-  "functions": {
-    "api/cron.py": {
-      "maxDuration": 60
-    }
-  }
+  ]
 }
