@@ -17,8 +17,18 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 def _parse_symbols() -> list[str]:
     raw = os.getenv("SYMBOLS", "").strip()
     if raw:
-        return [s.strip() for s in raw.split(",") if s.strip()]
+        return [_normalize_symbol(s) for s in raw.split(",") if s.strip()]
     return ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+
+
+def _normalize_symbol(symbol: str) -> str:
+    """Binance spot pairs use USDT suffix (e.g. DOGE -> DOGEUSDT)."""
+    s = symbol.strip().upper()
+    if not s:
+        return s
+    if s.endswith("USDT"):
+        return s
+    return f"{s}USDT"
 
 
 def _float_env(name: str, default: float) -> float:

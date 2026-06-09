@@ -24,7 +24,14 @@ async def fetch_klines(
         session = aiohttp.ClientSession()
     try:
         async with session.get(config.BINANCE_REST_URL, params=params) as resp:
-            resp.raise_for_status()
+            if resp.status >= 400:
+                body = await resp.text()
+                raise aiohttp.ClientResponseError(
+                    resp.request_info,
+                    resp.history,
+                    status=resp.status,
+                    message=f"{symbol} {interval}: {body[:200]}",
+                )
             raw = await resp.json()
     finally:
         if owns_session:
