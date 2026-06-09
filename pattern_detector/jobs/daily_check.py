@@ -108,10 +108,10 @@ async def _emit_results(
         logger.info("SENT %s %s %s conf=%.2f", symbol, result.type, tf, result.confidence)
 
 
-async def run_4h_check() -> dict[str, Any]:
-    """Scan 4H candles for bear/bull flags and descending triangles."""
+async def run_flag_check(timeframe: str) -> dict[str, Any]:
+    """Scan flag/triangle patterns on the given timeframe (1h or 4h)."""
     summary: dict[str, Any] = {
-        "mode": "4h",
+        "mode": timeframe,
         "symbols_checked": [],
         "signals_sent": [],
         "skipped": [],
@@ -125,22 +125,30 @@ async def run_4h_check() -> dict[str, Any]:
             for symbol in config.SYMBOLS:
                 summary["symbols_checked"].append(symbol)
                 try:
-                    closed = await _fetch_closed(symbol, config.FLAG_TIMEFRAME, session)
+                    closed = await _fetch_closed(symbol, timeframe, session)
                 except Exception as exc:  # noqa: BLE001
-                    logger.exception("[%s] 4h fetch failed", symbol)
+                    logger.exception("[%s] %s fetch failed", symbol, timeframe)
                     summary["errors"].append({"symbol": symbol, "error": str(exc)})
                     continue
 
                 if len(closed) < min_candles_required_flag():
                     summary["skipped"].append(
-                        {"symbol": symbol, "timeframe": "4h", "reason": "not enough candles"}
+                        {
+                            "symbol": symbol,
+                            "timeframe": timeframe,
+                            "reason": "not enough candles",
+                        }
                     )
                     continue
 
                 results = run_flag_triangle_detectors(symbol, closed)
                 if not results:
                     summary["skipped"].append(
-                        {"symbol": symbol, "timeframe": "4h", "reason": "no patterns detected"}
+                        {
+                            "symbol": symbol,
+                            "timeframe": timeframe,
+                            "reason": "no patterns detected",
+                        }
                     )
                     continue
 
@@ -148,7 +156,7 @@ async def run_4h_check() -> dict[str, Any]:
                     symbol=symbol,
                     results=results,
                     candles=closed,
-                    timeframe=config.FLAG_TIMEFRAME,
+                    timeframe=timeframe,
                     notifier=notifier,
                     kv=kv,
                     summary=summary,
@@ -177,7 +185,9 @@ async def run_1d_check() -> dict[str, Any]:
                 summary["symbols_checked"].append(symbol)
                 try:
                     closed_1d = await _fetch_closed(symbol, config.ENGULFING_TIMEFRAME, session)
-                    closed_4h = await _fetch_closed(symbol, config.FLAG_TIMEFRAME, session)
+                    closed_4h = await _fetch_closed(
+                        symbol, config.COMBO_FLAG_TIMEFRAME, session
+                    )
                 except Exception as exc:  # noqa: BLE001
                     logger.exception("[%s] 1d fetch failed", symbol)
                     summary["errors"].append({"symbol": symbol, "error": str(exc)})
@@ -217,7 +227,7 @@ async def run_1d_check() -> dict[str, Any]:
 
 
 async def run_daily_check(mode: str = "1d") -> dict[str, Any]:
-    """Dispatch cron job by mode: ``4h`` flags only, ``1d`` engulfing only."""
-    if mode == "4h":
-        return await run_4h_check()
+    """Dispatch cron: ``1h``/``4h`` flags, ``1d`` engulfing."""
+    if mode in config.FLAG_TIMEFRAMES:
+        return await run_flag_check(mode)
     return await run_1d_check()

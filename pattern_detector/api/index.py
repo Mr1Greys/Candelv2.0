@@ -20,6 +20,8 @@ logger = logging.getLogger("api")
 
 def _cron_mode(path: str) -> str | None:
     clean = path.split("?", 1)[0].rstrip("/")
+    if clean.endswith("/cron/1h"):
+        return "1h"
     if clean.endswith("/cron/4h"):
         return "4h"
     if clean.endswith("/cron") or clean == "/api/cron":

@@ -1,10 +1,11 @@
-"""Entry point: WebSocket workers on 4H (flags) and 1D (engulfing)."""
+"""Entry point: WebSocket workers on 1H/4H (flags) and 1D (engulfing)."""
 from __future__ import annotations
 
 import asyncio
 import logging
 import os
 import signal as os_signal
+from collections.abc import Callable
 
 import config
 from core.detectors import (
@@ -28,7 +29,7 @@ notifier = TelegramNotifier()
 _workers: list[BinanceWSWorker] = []
 _tasks: list[asyncio.Task] = []
 _stop_count = 0
-_buffers_4h: dict[str, list[Candle]] = {}
+_flag_buffers: dict[str, dict[str, list[Candle]]] = {}
 
 
 def setup_logging() -> None:
@@ -52,7 +53,7 @@ async def _emit(symbol: str, results: list[PatternResult], candles: list[Candle]
         log_detection(symbol, result, candles[-1], tf)
         if not state.should_emit(key, result, candles):
             continue
-        caption_tf = result.meta.get("timeframe") or timeframe_for_pattern(result)
+        caption_tf = result.meta.get("timeframe") or tf or timeframe_for_pattern(result)
         caption = format_caption(result, candles[-1], symbol, timeframe=caption_tf)
         try:
             png = render_chart(candles, result, symbol, timeframe=caption_tf)
@@ -62,15 +63,18 @@ async def _emit(symbol: str, results: list[PatternResult], candles: list[Candle]
             await notifier.send_text(caption)
 
 
-async def handle_4h_closed(symbol: str, buffer: CandleBuffer) -> None:
-    candles = buffer.closed
-    if len(candles) < min_candles_required_flag():
-        return
+def _make_flag_handler(timeframe: str) -> Callable:
+    async def handler(symbol: str, buffer: CandleBuffer) -> None:
+        candles = buffer.closed
+        if len(candles) < min_candles_required_flag():
+            return
 
-    _buffers_4h[symbol] = candles
-    state.on_new_candle(_state_key(symbol, config.FLAG_TIMEFRAME), candles)
-    results = run_flag_triangle_detectors(symbol, candles)
-    await _emit(symbol, results, candles, config.FLAG_TIMEFRAME)
+        _flag_buffers.setdefault(symbol, {})[timeframe] = candles
+        state.on_new_candle(_state_key(symbol, timeframe), candles)
+        results = run_flag_triangle_detectors(symbol, candles)
+        await _emit(symbol, results, candles, timeframe)
+
+    return handler
 
 
 async def handle_1d_closed(symbol: str, buffer: CandleBuffer) -> None:
@@ -79,7 +83,7 @@ async def handle_1d_closed(symbol: str, buffer: CandleBuffer) -> None:
         return
 
     state.on_new_candle(_state_key(symbol, config.ENGULFING_TIMEFRAME), candles_1d)
-    candles_4h = _buffers_4h.get(symbol, [])
+    candles_4h = _flag_buffers.get(symbol, {}).get(config.COMBO_FLAG_TIMEFRAME, [])
 
     combos = run_combo_detectors(symbol, candles_4h, candles_1d) if candles_4h else []
     engulfing = run_engulfing_detectors(symbol, candles_1d)
@@ -102,11 +106,12 @@ def log_detection(symbol: str, result: PatternResult, candle: Candle, tf: str) -
 
 
 async def build_status_text() -> str:
+    flag_tfs = ", ".join(tf.upper() for tf in config.FLAG_TIMEFRAMES)
     lines = [
         "\U0001F4CA Pattern Detector — статус",
         "",
         f"Пары: {', '.join(config.SYMBOLS)}",
-        f"Флаги / треугольник: {config.FLAG_TIMEFRAME.upper()}",
+        f"Флаги / треугольник: {flag_tfs}",
         f"Поглощения: {config.ENGULFING_TIMEFRAME.upper()}",
         "",
     ]
@@ -131,17 +136,18 @@ async def amain() -> None:
     logger.info(
         "Pattern Detector starting | symbols=%s | flags=%s | engulfing=%s",
         config.SYMBOLS,
-        config.FLAG_TIMEFRAME,
+        config.FLAG_TIMEFRAMES,
         config.ENGULFING_TIMEFRAME,
     )
 
     await notifier.start()
     notifier.set_status_provider(build_status_text)
 
+    flag_tfs = ", ".join(tf.upper() for tf in config.FLAG_TIMEFRAMES)
     if notifier.enabled:
         ok = await notifier.send_text(
             f"\u2705 Pattern Detector запущен\nПары: {', '.join(config.SYMBOLS)}\n"
-            f"Флаги / треугольник: {config.FLAG_TIMEFRAME.upper()}\n"
+            f"Флаги / треугольник: {flag_tfs}\n"
             f"Поглощения: {config.ENGULFING_TIMEFRAME.upper()}\n\n"
             f"Напиши /start для справки или /status для статуса."
         )
@@ -155,7 +161,8 @@ async def amain() -> None:
     global _workers, _tasks
     _workers = []
     for sym in config.SYMBOLS:
-        _workers.append(BinanceWSWorker(sym, handle_4h_closed, config.FLAG_TIMEFRAME))
+        for tf in config.FLAG_TIMEFRAMES:
+            _workers.append(BinanceWSWorker(sym, _make_flag_handler(tf), tf))
         _workers.append(BinanceWSWorker(sym, handle_1d_closed, config.ENGULFING_TIMEFRAME))
     _tasks = [asyncio.create_task(w.run()) for w in _workers]
     if notifier.enabled:

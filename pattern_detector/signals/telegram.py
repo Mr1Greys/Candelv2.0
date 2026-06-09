@@ -17,7 +17,7 @@ _API = "https://api.telegram.org/bot{token}/{method}"
 WELCOME_TEXT = (
     "\U0001F44B Pattern Detector\n\n"
     f"Я мониторю BTC / ETH / SOL и присылаю сигналы:\n"
-    f"• Bear / Bull Flag + треугольник — {config.FLAG_TIMEFRAME.upper()}\n"
+    f"• Bear / Bull Flag + треугольник — {', '.join(t.upper() for t in config.FLAG_TIMEFRAMES)}\n"
     f"• Bullish / Bearish Engulfing — {config.ENGULFING_TIMEFRAME.upper()}\n\n"
     "Сигнал = картинка графика + описание.\n"
     "Кнопок нет — только автоматические уведомления.\n\n"

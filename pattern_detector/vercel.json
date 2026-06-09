@@ -3,6 +3,10 @@
   "installCommand": "pip install -r requirements.txt",
   "crons": [
     {
+      "path": "/api/cron/1h",
+      "schedule": "5 * * * *"
+    },
+    {
       "path": "/api/cron/4h",
       "schedule": "5 */4 * * *"
     },

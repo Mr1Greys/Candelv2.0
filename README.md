@@ -54,7 +54,8 @@ Repository: https://github.com/Mr1Greys/Candelv2.0.git
 | Variable | Default |
 |----------|---------|
 | `BINANCE_REST_URL` | `https://data-api.binance.vision/api/v3/klines` |
-| `FLAG_TIMEFRAME` | `4h` (флаги и треугольник) |
+| `FLAG_TIMEFRAMES` | `1h,4h` (флаги и треугольник) |
+| `COMBO_FLAG_TIMEFRAME` | `4h` (для комбо с 1D поглощением) |
 | `ENGULFING_TIMEFRAME` | `1d` (поглощения) |
 | `SYMBOLS` | `BTCUSDT,ETHUSDT,SOLUSDT` |
 | `MPLCONFIGDIR` | `/tmp` |
@@ -89,6 +90,7 @@ Without KV, duplicate Telegram messages are possible if the cron endpoint is tri
 
 Cron is defined in [`pattern_detector/vercel.json`](pattern_detector/vercel.json):
 
+- `/api/cron/1h` — `5 * * * *` (флаги и треугольник, каждый час)
 - `/api/cron/4h` — `5 */4 * * *` (флаги и треугольник, каждые 4 часа)
 - `/api/cron` — `5 0 * * *` (поглощения, ежедневно 00:05 UTC)
 

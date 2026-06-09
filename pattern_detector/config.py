@@ -39,8 +39,21 @@ def _int_env(name: str, default: int) -> int:
 # Market / stream
 # --------------------------------------------------------------------------- #
 SYMBOLS: list[str] = _parse_symbols()
-# Flags / triangles are tuned for 4H; engulfing patterns for 1D.
-FLAG_TIMEFRAME: str = os.getenv("FLAG_TIMEFRAME", "4h").strip() or "4h"
+# Flags / triangles: same FLAG_* logic on 1H and 4H; engulfing on 1D.
+def _parse_flag_timeframes() -> list[str]:
+    raw = os.getenv("FLAG_TIMEFRAMES", "").strip()
+    if raw:
+        return [t.strip() for t in raw.split(",") if t.strip()]
+    legacy = os.getenv("FLAG_TIMEFRAME", "").strip()
+    if legacy:
+        return [legacy]
+    return ["1h", "4h"]
+
+
+FLAG_TIMEFRAMES: list[str] = _parse_flag_timeframes()
+# 4H structure used for combo signals with 1D engulfing.
+COMBO_FLAG_TIMEFRAME: str = os.getenv("COMBO_FLAG_TIMEFRAME", "4h").strip() or "4h"
+FLAG_TIMEFRAME: str = COMBO_FLAG_TIMEFRAME  # legacy alias
 ENGULFING_TIMEFRAME: str = os.getenv("ENGULFING_TIMEFRAME", "1d").strip() or "1d"
 # Legacy alias (engulfing TF) — do not use for flag detection.
 TIMEFRAME: str = ENGULFING_TIMEFRAME

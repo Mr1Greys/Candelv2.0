@@ -27,7 +27,7 @@ def timeframe_for_pattern(pattern: PatternResult) -> str:
     """Return the chart/caption timeframe for a detected pattern."""
     if pattern.is_engulfing() or "ENGULFING" in pattern.type:
         return config.ENGULFING_TIMEFRAME
-    return config.FLAG_TIMEFRAME
+    return config.COMBO_FLAG_TIMEFRAME
 
 
 def run_flag_triangle_detectors(
