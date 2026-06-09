@@ -8,8 +8,8 @@ import os
 import sys
 from http.server import BaseHTTPRequestHandler
 
-# Ensure pattern_detector root is on sys.path when Vercel loads this module.
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# pattern_detector root (api/cron/index.py -> up 3 levels)
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
@@ -24,7 +24,6 @@ logger = logging.getLogger("api.cron")
 def _authorized(headers) -> bool:
     secret = os.getenv("CRON_SECRET", "").strip()
     if not secret:
-        # Allow manual/local runs when CRON_SECRET is unset.
         return True
     auth = headers.get("Authorization") or headers.get("authorization") or ""
     return auth == f"Bearer {secret}"
