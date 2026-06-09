@@ -1,0 +1,5 @@
+websockets>=12.0
+aiohttp>=3.9
+numpy>=1.26
+matplotlib>=3.8
+python-dotenv>=1.0
