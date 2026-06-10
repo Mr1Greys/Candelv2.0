@@ -95,7 +95,7 @@ async def _emit_results(
             )
             continue
 
-        tf = result.meta.get("timeframe") or timeframe_for_pattern(result)
+        tf = result.meta.get("timeframe") or timeframe or timeframe_for_pattern(result)
         caption = format_caption(result, signal_candle, symbol, timeframe=tf)
         try:
             png = render_chart(candles, result, symbol, timeframe=tf)
